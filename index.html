@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Self-Driving Car Security Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+  <style>
+    :root {
+      --bg:           #0a0e1a;
+      --bg2:          #0d1b2a;
+      --bg3:          #0f2030;
+      --blue:         #00d4ff;
+      --blue-dim:     rgba(0,212,255,0.07);
+      --blue-border:  rgba(0,212,255,0.25);
+      --red:          #ff3232;
+      --green:        #00ff88;
+      --text:         #c8d8e8;
+      --text-mid:     #8ab4cc;
+      --text-dim:     #2a4a5a;
+      --sidebar-w:    290px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+    }
+    .app { display: flex; min-height: 100vh; }
+
+    /* ───────── SIDEBAR ───────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      background: linear-gradient(180deg, #0c1523 0%, #080c16 100%);
+      border-right: 1px solid rgba(0,212,255,0.12);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .sidebar h2 {
+      font-family: 'Orbitron', sans-serif;
+      color: var(--blue);
+      font-size: 0.82rem;
+      letter-spacing: 2px;
+      border-bottom: 1px solid rgba(0,212,255,0.18);
+      padding-bottom: 12px;
+    }
+    .sidebar-label {
+      color: var(--text-mid);
+      font-size: 0.7rem;
+      letter-spacing: 1px;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+    select {
+      width: 100%;
+      background: rgba(0,18,36,0.95);
+      border: 1px solid var(--blue);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.78rem;
+      padding: 7px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      outline: none;
+    }
+    select:focus { box-shadow: 0 0 8px rgba(0,212,255,0.35); }
+
+    .atk-card {
+      background: rgba(0,18,36,0.55);
+      border: 1px solid rgba(0,212,255,0.18);
+      border-radius: 8px;
+      padding: 11px;
+    }
+    .atk-card h3 {
+      font-family: 'Orbitron', sans-serif;
+      color: var(--blue);
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      margin-bottom: 7px;
+    }
+    .sev-badge {
+      display: inline-block;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 3px;
+      margin-bottom: 7px;
+    }
+    .sev-CRITICAL { color: #ff3333; border: 1px solid #ff3333; background: rgba(255,50,50,0.09); }
+    .sev-HIGH     { color: #ffaa00; border: 1px solid #ffaa00; background: rgba(255,170,0,0.09); }
+    .atk-desc {
+      font-size: 0.72rem;
+      color: var(--text-mid);
+      line-height: 1.55;
+      padding: 7px 10px;
+      background: rgba(0,212,255,0.04);
+      border-radius: 4px;
+      border-left: 2px solid rgba(0,212,255,0.25);
+    }
+    .sensor-tag {
+      display: block;
+      margin-top: 8px;
+      font-size: 0.72rem;
+      color: var(--blue);
+      background: rgba(0,212,255,0.07);
+      border: 1px solid rgba(0,212,255,0.22);
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      font-size: 0.6rem;
+      letter-spacing: 0.5px;
+      padding: 10px 6px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-launch { background: linear-gradient(90deg,#ff3232,#ff6b00); color: #fff; }
+    .btn-launch:hover { transform: scale(1.05); box-shadow: 0 0 14px rgba(255,50,50,0.55); }
+    .btn-stop   { background: linear-gradient(90deg,#00aa55,#00d488); color: #001a0a; }
+    .btn-stop:hover   { transform: scale(1.05); box-shadow: 0 0 14px rgba(0,200,100,0.45); }
+
+    .status-box {
+      text-align: center;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      padding: 9px 4px;
+      border-radius: 6px;
+      transition: all 0.3s;
+    }
+    .s-normal { color: var(--green); background: rgba(0,255,136,0.04); border: 1px solid rgba(0,255,136,0.18); }
+    .s-attack { color: var(--red);   background: rgba(255,50,50,0.07);  border: 1px solid rgba(255,50,50,0.38); animation: pulse-s 1.5s infinite; }
+    @keyframes pulse-s {
+      0%,100% { box-shadow: 0 0 4px rgba(255,50,50,0.25); }
+      50%      { box-shadow: 0 0 14px rgba(255,50,50,0.65); }
+    }
+    .live-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      color: var(--text-mid);
+    }
+    .live-toggle input { width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; }
+
+    /* ───────── MAIN ───────── */
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 20px 22px;
+      background: linear-gradient(135deg, #0a0e1a 0%, #0d1b2a 55%, #0a0e1a 100%);
+      overflow-x: hidden;
+    }
+    .main-hdr { text-align: center; margin-bottom: 16px; }
+    .main-hdr h1 {
+      font-family: 'Orbitron', sans-serif;
+      color: var(--blue);
+      font-size: 1.4rem;
+      letter-spacing: 3px;
+      margin-bottom: 3px;
+    }
+    .main-hdr p { color: var(--text-dim); font-size: 0.75rem; }
+
+    .div { border: none; border-top: 1px solid rgba(0,212,255,0.09); margin: 14px 0; }
+
+    /* ───────── METRICS ───────── */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(6,1fr);
+      gap: 9px;
+      margin-bottom: 14px;
+    }
+    .metric-card {
+      background: var(--blue-dim);
+      border: 1px solid var(--blue-border);
+      border-radius: 8px;
+      padding: 11px 8px;
+      text-align: center;
+    }
+    .metric-lbl   { font-size: 0.62rem; color: var(--text-mid); letter-spacing: 0.5px; margin-bottom: 3px; }
+    .metric-val   { font-family: 'Orbitron', sans-serif; font-size: 1rem; color: var(--blue); line-height: 1.1; margin-bottom: 3px; }
+    .metric-delta { font-size: 0.62rem; padding: 1px 5px; border-radius: 2px; }
+    .d-ok   { color: #00cc66; background: rgba(0,204,102,0.09); }
+    .d-warn { color: #ff4444; background: rgba(255,68,68,0.11); animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ───────── TWO-COL ROWS ───────── */
+    .row-2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .row-2b{ display: grid; grid-template-columns: 1fr 1.5fr; gap: 14px; margin-bottom: 14px; }
+    .panel {
+      background: rgba(0,8,18,0.5);
+      border: 1px solid rgba(0,212,255,0.09);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .panel h3 {
+      font-family: 'Orbitron', sans-serif;
+      color: var(--blue);
+      font-size: 0.74rem;
+      letter-spacing: 1.5px;
+      margin-bottom: 10px;
+    }
+
+    /* ───────── CONSEQUENCES ───────── */
+    .csq-item {
+      border-radius: 7px;
+      padding: 9px 12px;
+      margin-bottom: 7px;
+      font-size: 0.77rem;
+      line-height: 1.4;
+      transition: all 0.3s;
+    }
+    .csq-atk {
+      background: linear-gradient(135deg, rgba(255,50,50,0.11), rgba(255,50,50,0.04));
+      border: 1px solid rgba(255,80,80,0.35);
+      animation: pr 2s infinite;
+    }
+    .csq-safe {
+      background: linear-gradient(135deg, rgba(0,212,100,0.1), rgba(0,212,100,0.03));
+      border: 1px solid rgba(0,212,100,0.28);
+    }
+    @keyframes pr {
+      0%,100%{ box-shadow: 0 0 4px rgba(255,50,50,0.2); }
+      50%    { box-shadow: 0 0 13px rgba(255,50,50,0.55); }
+    }
+    .sys-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 10px;
+      margin-bottom: 4px;
+      border-left-width: 3px;
+      border-left-style: solid;
+      border-radius: 0 4px 4px 0;
+      font-size: 0.75rem;
+    }
+    .sys-atk  { border-left-color:#ff4444; background:rgba(255,100,0,0.07); color:#ff9999; }
+    .sys-safe { border-left-color:#ffaa33; background:rgba(255,170,0,0.04);  color:var(--text-mid); }
+    .sys-status { font-size: 0.68rem; margin-left: auto; font-family: 'Orbitron', sans-serif; }
+
+    /* ───────── RAW TABLE ───────── */
+    details {
+      border: 1px solid rgba(0,212,255,0.12);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    summary {
+      padding: 9px 14px;
+      background: rgba(0,18,36,0.45);
+      cursor: pointer;
+      font-size: 0.77rem;
+      color: var(--text-mid);
+      user-select: none;
+    }
+    summary:hover { color: var(--blue); }
+    #rawTable { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    #rawTable td { padding: 5px 14px; border-bottom: 1px solid rgba(0,212,255,0.05); }
+    #rawTable td:first-child { color: var(--text-mid); }
+    #rawTable td:last-child  { color: var(--blue); text-align: right; }
+    #rawTable tr:last-child td { border-bottom: none; }
+
+    .refresh-bar { text-align: center; margin-bottom: 18px; }
+    .btn-refresh {
+      background: var(--blue-dim);
+      color: var(--blue);
+      border: 1px solid var(--blue-border);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      padding: 9px 22px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-refresh:hover { background: rgba(0,212,255,0.13); box-shadow: 0 0 12px rgba(0,212,255,0.28); }
+    .footer { text-align: center; color: var(--text-dim); font-size: 0.7rem; padding: 14px 0 6px; }
+
+    /* ───────── RESPONSIVE ───────── */
+    @media (max-width: 1200px) {
+      .metrics-row { grid-template-columns: repeat(3,1fr); }
+      .row-2, .row-2b { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .app { flex-direction: column; }
+      .sidebar { width: 100%; min-width: 100%; height: auto; position: relative; }
+      .metrics-row { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══════════════════════════════════════ SIDEBAR ═══ -->
+  <aside class="sidebar">
+    <h2>⚙ CONTROL PANEL</h2>
+
+    <div>
+      <div class="sidebar-label">Select Cyber Attack Vector</div>
+      <select id="attackSelect"></select>
+    </div>
+
+    <div class="atk-card">
+      <h3 id="atkTitle"></h3>
+      <div id="atkSev"></div>
+      <div class="atk-desc" id="atkDesc"></div>
+      <span class="sidebar-label" style="margin-top:9px;display:block;">Targeted Sensor:</span>
+      <span class="sensor-tag" id="atkSensor"></span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-launch" id="launchBtn">🔴 LAUNCH ATTACK</button>
+      <button class="btn-stop"   id="stopBtn">🟢 STOP / RESET</button>
+    </div>
+
+    <div class="status-box s-normal" id="statusBox">🟢 SYSTEM NORMAL</div>
+
+    <label class="live-toggle">
+      <input type="checkbox" id="liveMode">
+      ⚡ Live Data Mode (auto-refresh)
+    </label>
+  </aside>
+
+  <!-- ═══════════════════════════════════════ MAIN ═══ -->
+  <main class="main">
+    <div class="main-hdr">
+      <h1>🚗 SELF-DRIVING CAR SECURITY ANALYSIS</h1>
+      <p>Cyber Attack → Physical System Impact Visualizer</p>
+    </div>
+    <hr class="div">
+
+    <!-- METRICS -->
+    <div class="metrics-row">
+      <div class="metric-card">
+        <div class="metric-lbl">🚗 Speed</div>
+        <div class="metric-val" id="mv-speed">—</div>
+        <div class="metric-delta d-ok" id="md-speed">&nbsp;</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-lbl">📡 GPS Accuracy</div>
+        <div class="metric-val" id="mv-gps">—</div>
+        <div class="metric-delta d-ok" id="md-gps">Normal</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-lbl">🔦 LIDAR Front</div>
+        <div class="metric-val" id="mv-lidar">—</div>
+        <div class="metric-delta d-ok" id="md-lidar">Clear</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-lbl">📷 Cam Confidence</div>
+        <div class="metric-val" id="mv-cam">—</div>
+        <div class="metric-delta d-ok" id="md-cam">Good</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-lbl">🔌 CAN Errors</div>
+        <div class="metric-val" id="mv-can">—</div>
+        <div class="metric-delta d-ok" id="md-can">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-lbl">📶 Radar Front</div>
+        <div class="metric-val" id="mv-radar">—</div>
+        <div class="metric-delta d-ok" id="md-radar">OK</div>
+      </div>
+    </div>
+    <hr class="div">
+
+    <!-- MAP + CAR -->
+    <div class="row-2">
+      <div class="panel">
+        <h3>🗺️ Attack Propagation Map</h3>
+        <div id="propMap"></div>
+      </div>
+      <div class="panel">
+        <h3>🚨 Physical Impact Animation</h3>
+        <div id="carDiag"></div>
+      </div>
+    </div>
+
+    <!-- CONSEQUENCES + TELEMETRY -->
+    <div class="row-2b">
+      <div class="panel">
+        <h3>💥 Attack Consequences</h3>
+        <div id="csqList"></div>
+        <h3 style="margin-top:14px;">🔧 Impacted Physical Systems</h3>
+        <div id="sysList"></div>
+      </div>
+      <div class="panel">
+        <h3>📊 Live Sensor Telemetry</h3>
+        <div id="telChart"></div>
+      </div>
+    </div>
+    <hr class="div">
+
+    <!-- THREAT MATRIX -->
+    <div class="panel" style="margin-bottom:14px;">
+      <h3>🛡️ Security Threat Matrix — All Attack Vectors</h3>
+      <div id="threatMatrix"></div>
+    </div>
+
+    <!-- RAW DATA -->
+    <details>
+      <summary>🔬 Raw Sensor Data (Current Tick)</summary>
+      <table id="rawTable"><tbody></tbody></table>
+    </details>
+
+    <div class="refresh-bar">
+      <button class="btn-refresh" id="refreshBtn">🔄 Refresh Data</button>
+    </div>
+    <div class="footer">Design &amp; Security Analysis of Self-Driving Car System | Simulated Sensor Data</div>
+  </main>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ──────────────────────────────────────────────────────────────────────────────
+const CYBER_ATTACKS = {
+  "GPS Spoofing": {
+    icon: "📡", color: "#ff4444",
+    physical_impacts: ["GPS/Navigation","Route Planning","Steering System"],
+    description: "Attacker sends fake GPS signals to mislead the vehicle location.",
+    consequences: [
+      "Vehicle navigates to wrong location",
+      "Steering commands deviate from intended path",
+      "Vehicle may enter restricted/dangerous zones"
+    ],
+    severity: "CRITICAL", sensor: "GPS Receiver"
+  },
+  "CAN Bus Injection": {
+    icon: "🔌", color: "#ff6600",
+    physical_impacts: ["Braking System","Engine Control","Transmission"],
+    description: "Malicious frames injected into CAN bus to control vehicle actuators.",
+    consequences: [
+      "Sudden unintended braking or acceleration",
+      "Engine RPM manipulation",
+      "Gear shift interference at high speed"
+    ],
+    severity: "CRITICAL", sensor: "CAN Bus Interface"
+  },
+  "LIDAR Spoofing": {
+    icon: "🔦", color: "#cc00ff",
+    physical_impacts: ["Obstacle Detection","Braking System","Steering System"],
+    description: "Laser pulses injected to create fake obstacles or blind the LIDAR.",
+    consequences: [
+      "Emergency braking for non-existent obstacles",
+      "Failure to detect real pedestrians/vehicles",
+      "Erratic steering to avoid phantom objects"
+    ],
+    severity: "HIGH", sensor: "LIDAR Sensor"
+  },
+  "Camera Adversarial Attack": {
+    icon: "📷", color: "#ffaa00",
+    physical_impacts: ["Vision System","Traffic Sign Recognition","Lane Keeping"],
+    description: "Adversarial patches placed on signs/roads fool the vision neural network.",
+    consequences: [
+      "Stop sign misclassified as speed limit sign",
+      "Lane markings ignored — vehicle drifts",
+      "Traffic light state misread"
+    ],
+    severity: "HIGH", sensor: "Camera Array"
+  },
+  "Radar Jamming": {
+    icon: "📶", color: "#00aaff",
+    physical_impacts: ["Adaptive Cruise Control","Collision Avoidance","Braking System"],
+    description: "High-power RF signal jams radar receiver, blinding it to nearby vehicles.",
+    consequences: [
+      "ACC fails to slow for slower vehicle ahead",
+      "Rear-end collision risk increases significantly",
+      "Emergency braking system disabled"
+    ],
+    severity: "HIGH", sensor: "Radar Sensor"
+  },
+  "V2X / OTA Attack": {
+    icon: "📲", color: "#00ffaa",
+    physical_impacts: ["Software/ECU","All Physical Systems","Remote Control"],
+    description: "Man-in-the-middle on V2X comms or OTA update channel injects malicious firmware.",
+    consequences: [
+      "Full vehicle takeover via remote commands",
+      "Persistent malware across all ECUs",
+      "Complete loss of driver/system control"
+    ],
+    severity: "CRITICAL", sensor: "V2X / Telematics Unit"
+  }
+};
+
+const PHYSICAL_SYSTEMS = [
+  "GPS/Navigation","Braking System","Engine Control",
+  "Steering System","Vision System","Obstacle Detection",
+  "Adaptive Cruise Control","Software/ECU","Transmission",
+  "Route Planning","Lane Keeping","Traffic Sign Recognition",
+  "Collision Avoidance","Remote Control","All Physical Systems"
+];
+
+const CAR_PARTS = {
+  "GPS/Navigation":           [0.5,  0.12],
+  "Route Planning":           [0.5,  0.05],
+  "Vision System":            [0.5,  0.22],
+  "Braking System":           [0.18, 0.68],
+  "Engine Control":           [0.5,  0.5 ],
+  "Steering System":          [0.5,  0.35],
+  "Obstacle Detection":       [0.82, 0.22],
+  "Adaptive Cruise Control":  [0.18, 0.35],
+  "Software/ECU":             [0.82, 0.5 ],
+  "Transmission":             [0.5,  0.65],
+  "Lane Keeping":             [0.18, 0.22],
+  "Traffic Sign Recognition": [0.82, 0.35],
+  "Collision Avoidance":      [0.82, 0.68],
+  "Remote Control":           [0.18, 0.5 ],
+  "All Physical Systems":     [0.5,  0.5 ]
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────────────────────────────────
+let attackActive   = false;
+let selectedAttack = "GPS Spoofing";
+let history        = [];
+let tick           = 0;
+let autoInterval   = null;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MATH UTILS
+// ──────────────────────────────────────────────────────────────────────────────
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+function hexRgba(hex, a) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SENSOR GENERATOR  (matches Python source exactly)
+// ──────────────────────────────────────────────────────────────────────────────
+function genSensors(atk, type, t) {
+  const d = {
+    speed_kmh:          60  + 5   * Math.sin(t * 0.3)  + randn(),
+    gps_lat:            19.2183 + 0.0001 * Math.sin(t * 0.05) + randn() * 0.00005,
+    gps_lon:            72.9781 + 0.0001 * Math.cos(t * 0.05) + randn() * 0.00005,
+    gps_accuracy_m:     1.5  + randn() * 0.2,
+    lidar_front_m:      25   + 3   * Math.sin(t * 0.2)  + randn() * 0.5,
+    lidar_left_m:       3.5  + randn() * 0.1,
+    lidar_right_m:      3.5  + randn() * 0.1,
+    radar_front_m:      80   + 5   * Math.cos(t * 0.15) + randn(),
+    radar_velocity_rel: -2   + randn() * 0.5,
+    camera_confidence:  Math.min(1, 0.95 + randn() * 0.02),
+    imu_accel_x:        randn() * 0.1,
+    imu_accel_y:        randn() * 0.05,
+    imu_yaw_rate:       randn() * 0.5,
+    brake_pressure_bar: Math.abs(randn() * 0.5),
+    throttle_pct:       28  + randn() * 2,
+    engine_rpm:         1800 + 100 * Math.sin(t * 0.4) + randn() * 20,
+    can_bus_errors:     0,
+    battery_soc_pct:    75  - t * 0.01
+  };
+  if (atk && type) {
+    if (type === "GPS Spoofing") {
+      d.gps_lat        += randn() * 0.01 + 0.02;
+      d.gps_lon        += randn() * 0.01 + 0.02;
+      d.gps_accuracy_m  = 50 + Math.random() * 150;
+    } else if (type === "CAN Bus Injection") {
+      d.brake_pressure_bar = 80  + Math.random() * 70;
+      d.throttle_pct       = 80  + Math.random() * 20;
+      d.engine_rpm         = 5000 + Math.random() * 2000;
+      d.can_bus_errors     = Math.floor(50 + Math.random() * 150);
+    } else if (type === "LIDAR Spoofing") {
+      d.lidar_front_m      = 0.5  + Math.random() * 2.5;
+      d.brake_pressure_bar = 60   + Math.random() * 60;
+    } else if (type === "Camera Adversarial Attack") {
+      d.camera_confidence  = 0.1  + Math.random() * 0.3;
+    } else if (type === "Radar Jamming") {
+      d.radar_front_m      = 0;
+      d.radar_velocity_rel = 0;
+    } else if (type === "V2X / OTA Attack") {
+      d.can_bus_errors     = Math.floor(200 + Math.random() * 300);
+      d.throttle_pct       = Math.random() * 100;
+      d.engine_rpm         = Math.random() * 8000;
+    }
+  }
+  return d;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SIDEBAR
+// ──────────────────────────────────────────────────────────────────────────────
+function populateSelector() {
+  const sel = document.getElementById('attackSelect');
+  sel.innerHTML = '';
+  Object.keys(CYBER_ATTACKS).forEach(k => {
+    const o = document.createElement('option');
+    o.value = k;
+    o.textContent = CYBER_ATTACKS[k].icon + ' ' + k;
+    if (k === selectedAttack) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function renderAtkInfo() {
+  const a = CYBER_ATTACKS[selectedAttack];
+  document.getElementById('atkTitle').textContent  = a.icon + ' ' + selectedAttack;
+  document.getElementById('atkSev').innerHTML      = `<span class="sev-badge sev-${a.severity}">⚠ Severity: ${a.severity}</span>`;
+  document.getElementById('atkDesc').textContent   = a.description;
+  document.getElementById('atkSensor').textContent = a.sensor;
+}
+
+function renderStatus() {
+  const el = document.getElementById('statusBox');
+  if (attackActive) {
+    el.textContent = '🔴 ATTACK IN PROGRESS';
+    el.className = 'status-box s-attack';
+  } else {
+    el.textContent = '🟢 SYSTEM NORMAL';
+    el.className = 'status-box s-normal';
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// METRICS
+// ──────────────────────────────────────────────────────────────────────────────
+function updateMetrics(d) {
+  const gpsW   = d.gps_accuracy_m > 10;
+  const lidarW = d.lidar_front_m  < 5;
+  const camW   = d.camera_confidence < 0.6;
+  const canW   = d.can_bus_errors > 10;
+  const radW   = d.radar_front_m === 0;
+
+  function setM(id, val) { document.getElementById(id).textContent = val; }
+  function setD(id, warn, wt, ok) {
+    const el = document.getElementById(id);
+    el.textContent = warn ? wt : ok;
+    el.className = 'metric-delta ' + (warn ? 'd-warn' : 'd-ok');
+  }
+
+  setM('mv-speed', d.speed_kmh.toFixed(1) + ' km/h');
+  setM('mv-gps',   d.gps_accuracy_m.toFixed(1) + ' m');
+  setM('mv-lidar', d.lidar_front_m.toFixed(1) + ' m');
+  setM('mv-cam',   d.camera_confidence.toFixed(2));
+  setM('mv-can',   Math.round(d.can_bus_errors).toString());
+  setM('mv-radar', d.radar_front_m.toFixed(1) + ' m');
+
+  setD('md-gps',   gpsW,   '⚠ SPOOFED',   'Normal');
+  setD('md-lidar', lidarW, '⚠ FAKE OBJ',  'Clear');
+  setD('md-cam',   camW,   '⚠ LOW',        'Good');
+  setD('md-can',   canW,   '⚠ INJECTED',  '0');
+  setD('md-radar', radW,   '⚠ JAMMED',     'OK');
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PROPAGATION MAP
+// ──────────────────────────────────────────────────────────────────────────────
+const cyberNames = Object.keys(CYBER_ATTACKS);
+const mapCX = cyberNames.map(() => 0.05);
+const mapCY = cyberNames.map((_,i) => cyberNames.length > 1 ? i / (cyberNames.length - 1) : 0.5);
+const mapPX = PHYSICAL_SYSTEMS.map(() => 0.95);
+const mapPY = PHYSICAL_SYSTEMS.map((_,i) => PHYSICAL_SYSTEMS.length > 1 ? i / (PHYSICAL_SYSTEMS.length - 1) : 0.5);
+
+function buildMapTraces() {
+  const traces = [];
+  const atk = CYBER_ATTACKS[selectedAttack];
+  const impacted = atk.physical_impacts;
+  const ai = cyberNames.indexOf(selectedAttack);
+
+  // Edges
+  impacted.forEach(ps => {
+    const pi = PHYSICAL_SYSTEMS.indexOf(ps);
+    if (pi < 0) return;
+    traces.push({
+      type:'scatter', mode:'lines',
+      x:[mapCX[ai], mapPX[pi]], y:[mapCY[ai], mapPY[pi]],
+      line:{ color: attackActive ? '#ff3333' : '#333', width:2.5, dash:'dot' },
+      showlegend:false, hoverinfo:'skip'
+    });
+  });
+
+  // Cyber nodes
+  cyberNames.forEach((name, i) => {
+    const sel = name === selectedAttack;
+    traces.push({
+      type:'scatter', mode:'markers+text',
+      x:[mapCX[i]], y:[mapCY[i]],
+      marker:{ size: sel ? 28 : 16, color: sel ? CYBER_ATTACKS[name].color : '#334455',
+               symbol:'diamond', line:{ width:2, color: sel ? 'white' : '#223' } },
+      text: [CYBER_ATTACKS[name].icon + ' ' + name],
+      textposition:'middle right',
+      textfont:{ size:9, color:'#c8d8e8', family:'Share Tech Mono' },
+      name, hoverinfo:'name', showlegend:false
+    });
+  });
+
+  // Physical nodes
+  PHYSICAL_SYSTEMS.forEach((ps, i) => {
+    const hit = impacted.includes(ps);
+    const act = hit && attackActive;
+    traces.push({
+      type:'scatter', mode:'markers+text',
+      x:[mapPX[i]], y:[mapPY[i]],
+      marker:{ size: act ? 20 : 12,
+               color: act ? '#ff5555' : (hit ? '#ffaa33' : '#1a3a4a'),
+               symbol:'circle',
+               line:{ width:2, color: act ? '#ff3333' : '#334' } },
+      text:[ps], textposition:'middle left',
+      textfont:{ size:9, color: act ? '#ff9999' : '#8ab4cc', family:'Share Tech Mono' },
+      name:ps, hoverinfo:'name', showlegend:false
+    });
+  });
+  return traces;
+}
+
+const mapLayout = {
+  height:460,
+  paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,8,18,0.75)',
+  xaxis:{ visible:false, range:[-0.1,1.5] },
+  yaxis:{ visible:false, range:[-0.05,1.1] },
+  margin:{ l:0, r:0, t:38, b:0 },
+  font:{ color:'#c8d8e8', family:'Share Tech Mono' },
+  annotations:[
+    { x:0.05, y:1.07, text:'⚡ CYBER ATTACKS',    showarrow:false, font:{ color:'#00d4ff', size:10, family:'Orbitron' }, xref:'paper', yref:'paper' },
+    { x:0.95, y:1.07, text:'🔧 PHYSICAL SYSTEMS', showarrow:false, font:{ color:'#ff7744', size:10, family:'Orbitron' }, xref:'paper', yref:'paper' }
+  ]
+};
+
+function initPropMap() {
+  Plotly.newPlot('propMap', buildMapTraces(), mapLayout, { displayModeBar:false, responsive:true });
+}
+function updatePropMap() {
+  Plotly.react('propMap', buildMapTraces(), mapLayout);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CAR DIAGRAM
+// ──────────────────────────────────────────────────────────────────────────────
+function buildCarTraces() {
+  const traces = [];
+  const impacted = CYBER_ATTACKS[selectedAttack].physical_impacts;
+
+  // Body
+  traces.push({
+    type:'scatter', mode:'lines',
+    x:[0.15,0.85,0.85,0.72,0.28,0.15,0.15],
+    y:[0.30,0.30,0.75,0.90,0.90,0.75,0.30],
+    fill:'toself', fillcolor:'rgba(0,45,75,0.55)',
+    line:{ color:'#00d4ff', width:2 },
+    showlegend:false, hoverinfo:'skip'
+  });
+
+  // Wheels
+  [[0.2,0.28],[0.8,0.28],[0.2,0.72],[0.8,0.72]].forEach(([wx,wy]) => {
+    const θ = Array.from({length:17}, (_,i) => i * Math.PI / 8);
+    traces.push({
+      type:'scatter', mode:'lines',
+      x: θ.map(a => wx + 0.07 * Math.cos(a)),
+      y: θ.map(a => wy + 0.042 * Math.sin(a)),
+      fill:'toself', fillcolor:'#091520',
+      line:{ color:'#00aaff', width:1.5 },
+      showlegend:false, hoverinfo:'skip'
+    });
+  });
+
+  // System nodes
+  Object.entries(CAR_PARTS).forEach(([sys,[sx,sy]]) => {
+    if (sys === "All Physical Systems") return;
+    const hit = impacted.includes(sys) || impacted.includes("All Physical Systems");
+    const act = hit && attackActive;
+    traces.push({
+      type:'scatter', mode:'markers+text',
+      x:[sx], y:[sy],
+      marker:{ size: act ? 18 : 12,
+               color: act ? '#ff3333' : (hit ? '#ffaa00' : '#0a3a5a'),
+               symbol: hit ? 'square' : 'circle',
+               line:{ width:2, color: act ? 'white' : '#0a3a5a' } },
+      text:[sys], textposition:'top center',
+      textfont:{ size:7, color: act ? '#ff9999' : '#5a8a9a', family:'Share Tech Mono' },
+      name:sys,
+      hovertemplate:`<b>${sys}</b><br>Status: ${act ? '⚠ COMPROMISED' : 'Normal'}<extra></extra>`,
+      showlegend:false
+    });
+  });
+  return traces;
+}
+
+function carLayout() {
+  const act = attackActive;
+  return {
+    height:460,
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,8,18,0.75)',
+    xaxis:{ visible:false, range:[0,1] },
+    yaxis:{ visible:false, range:[0,1] },
+    margin:{ l:0, r:0, t:30, b:0 },
+    font:{ color:'#c8d8e8' },
+    annotations:[{
+      x:0.5, y:1.05,
+      text: act ? '⚠ UNDER ATTACK' : '✓ NOMINAL',
+      showarrow:false,
+      font:{ color: act ? '#ff3333' : '#00ff88', size:13, family:'Orbitron' },
+      xref:'paper', yref:'paper'
+    }]
+  };
+}
+
+function initCarDiag() {
+  Plotly.newPlot('carDiag', buildCarTraces(), carLayout(), { displayModeBar:false, responsive:true });
+}
+function updateCarDiag() {
+  Plotly.react('carDiag', buildCarTraces(), carLayout());
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// TELEMETRY
+// ──────────────────────────────────────────────────────────────────────────────
+const TEL_SERIES = [
+  { key:'speed_kmh',         title:'Speed (km/h)',       color:'#00d4ff', r:1,c:1 },
+  { key:'gps_accuracy_m',    title:'GPS Accuracy (m)',   color:'#ffaa00', r:1,c:2 },
+  { key:'lidar_front_m',     title:'LIDAR Front (m)',    color:'#cc00ff', r:2,c:1 },
+  { key:'camera_confidence', title:'Camera Confidence',  color:'#00ffaa', r:2,c:2 },
+  { key:'can_bus_errors',    title:'CAN Bus Errors',     color:'#ff6600', r:3,c:1 },
+  { key:'engine_rpm',        title:'Engine RPM',         color:'#00aaff', r:3,c:2 }
+];
+
+const axisKey = (r,c) => {
+  const n = (r-1)*2 + c;
+  return n === 1 ? ['x','y'] : [`x${n}`,`y${n}`];
+};
+
+function buildTelTraces() {
+  return TEL_SERIES.map(s => {
+    const [xa,ya] = axisKey(s.r, s.c);
+    return {
+      type:'scatter', mode:'lines',
+      y: history.map(h => h[s.key]),
+      line:{ color:s.color, width:2 },
+      fill:'tozeroy',
+      fillcolor: hexRgba(s.color, 0.08),
+      showlegend:false,
+      xaxis:xa, yaxis:ya
+    };
+  });
+}
+
+function buildTelLayout() {
+  const layout = {
+    height:340,
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,8,18,0.85)',
+    grid:{ rows:3, columns:2, pattern:'independent', roworder:'top to bottom' },
+    font:{ color:'#8ab4cc', size:9, family:'Share Tech Mono' },
+    margin:{ l:35, r:10, t:28, b:10 },
+    annotations: TEL_SERIES.map((s,i) => ({
+      text:s.title,
+      x: i%2===0 ? 0.18 : 0.82,
+      y: 1 - Math.floor(i/2) * 0.36,
+      xref:'paper', yref:'paper',
+      font:{ size:9, color:s.color, family:'Share Tech Mono' },
+      showarrow:false, xanchor:'center'
+    }))
+  };
+  for (let n = 1; n <= 6; n++) {
+    const ax = n===1 ? 'xaxis' : `xaxis${n}`;
+    const ay = n===1 ? 'yaxis' : `yaxis${n}`;
+    layout[ax] = { showgrid:false, zeroline:false, showticklabels:false };
+    layout[ay] = { gridcolor:'rgba(0,100,150,0.18)', zeroline:false, tickfont:{ size:7 } };
+  }
+  return layout;
+}
+
+const telLayoutCached = buildTelLayout();
+
+function initTelChart() {
+  Plotly.newPlot('telChart', buildTelTraces(), telLayoutCached, { displayModeBar:false, responsive:true });
+}
+function updateTelChart() {
+  if (history.length < 2) return;
+  Plotly.react('telChart', buildTelTraces(), telLayoutCached);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// THREAT MATRIX
+// ──────────────────────────────────────────────────────────────────────────────
+const SEV_MAP = { CRITICAL:3, HIGH:2, MEDIUM:1 };
+
+function initThreatMatrix() {
+  const names  = Object.keys(CYBER_ATTACKS);
+  const labels = names.map(n => CYBER_ATTACKS[n].icon + ' ' + n);
+  const sevVals = names.map(n => SEV_MAP[CYBER_ATTACKS[n].severity]);
+  const impCts  = names.map(n => CYBER_ATTACKS[n].physical_impacts.length);
+  const colors  = names.map(n => CYBER_ATTACKS[n].color);
+
+  const traces = [
+    {
+      type:'bar', x:labels, y:sevVals,
+      name:'Severity Score',
+      marker:{ color:colors },
+      text: names.map(n => CYBER_ATTACKS[n].severity),
+      textposition:'outside',
+      textfont:{ color:'#c8d8e8', size:11 }
+    },
+    {
+      type:'scatter', x:labels, y:impCts,
+      name:'# Physical Systems Impacted',
+      mode:'lines+markers',
+      line:{ color:'#00ffaa', width:2, dash:'dot' },
+      marker:{ size:10, color:'#00ffaa' },
+      yaxis:'y2'
+    }
+  ];
+
+  const layout = {
+    height:285,
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,8,18,0.85)',
+    yaxis:{ title:'Severity (1=Med,2=High,3=Crit)',
+            gridcolor:'rgba(0,100,150,0.2)', color:'#8ab4cc', range:[0,4],
+            titlefont:{ size:9 } },
+    yaxis2:{ title:'# Systems Impacted', overlaying:'y', side:'right',
+             gridcolor:'rgba(0,100,150,0.1)', color:'#00ffaa', range:[0,6],
+             titlefont:{ size:9 } },
+    legend:{ bgcolor:'rgba(0,0,0,0.5)', bordercolor:'#334', font:{ color:'#c8d8e8', size:10 } },
+    font:{ color:'#8ab4cc', family:'Share Tech Mono' },
+    margin:{ l:55, r:55, t:8, b:75 },
+    xaxis:{ tickfont:{ size:9 }, gridcolor:'rgba(0,100,150,0.1)' }
+  };
+
+  Plotly.newPlot('threatMatrix', traces, layout, { displayModeBar:false, responsive:true });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CONSEQUENCES & SYSTEMS
+// ──────────────────────────────────────────────────────────────────────────────
+function renderConsequences() {
+  const a = CYBER_ATTACKS[selectedAttack];
+  const cls  = attackActive ? 'csq-item csq-atk' : 'csq-item csq-safe';
+  const icon = attackActive ? '🔴' : '🟡';
+
+  document.getElementById('csqList').innerHTML =
+    a.consequences.map(c => `<div class="${cls}">${icon} ${c}</div>`).join('');
+
+  document.getElementById('sysList').innerHTML =
+    a.physical_impacts.map(ps => {
+      const sc = attackActive ? 'sys-item sys-atk' : 'sys-item sys-safe';
+      const st = attackActive ? 'COMPROMISED ⚠' : 'AT RISK';
+      return `<div class="${sc}"><span>🔧 ${ps}</span><span class="sys-status">${st}</span></div>`;
+    }).join('');
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RAW TABLE
+// ──────────────────────────────────────────────────────────────────────────────
+function updateRawTable(d) {
+  document.querySelector('#rawTable tbody').innerHTML =
+    Object.entries(d).map(([k,v]) =>
+      `<tr><td>${k}</td><td>${typeof v === 'number' ? v.toFixed(4) : v}</td></tr>`
+    ).join('');
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MAIN UPDATE
+// ──────────────────────────────────────────────────────────────────────────────
+function updateAll() {
+  tick++;
+  const data = genSensors(attackActive, selectedAttack, tick);
+  history.push(data);
+  if (history.length > 50) history = history.slice(-50);
+
+  updateMetrics(data);
+  updatePropMap();
+  updateCarDiag();
+  updateTelChart();
+  renderConsequences();
+  updateRawTable(data);
+  renderStatus();
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// EVENTS
+// ──────────────────────────────────────────────────────────────────────────────
+document.getElementById('attackSelect').addEventListener('change', e => {
+  selectedAttack = e.target.value;
+  renderAtkInfo();
+  updateAll();
+});
+
+document.getElementById('launchBtn').addEventListener('click', () => {
+  attackActive = true;
+  updateAll();
+});
+
+document.getElementById('stopBtn').addEventListener('click', () => {
+  attackActive = false;
+  history = []; tick = 0;
+  updateAll();
+});
+
+document.getElementById('refreshBtn').addEventListener('click', updateAll);
+
+document.getElementById('liveMode').addEventListener('change', e => {
+  if (e.target.checked) {
+    autoInterval = setInterval(updateAll, 1000);
+  } else {
+    clearInterval(autoInterval);
+    autoInterval = null;
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────────────────────────────────────
+populateSelector();
+renderAtkInfo();
+initPropMap();
+initCarDiag();
+initTelChart();
+initThreatMatrix();
+updateAll();
+</script>
+</body>
+</html>
